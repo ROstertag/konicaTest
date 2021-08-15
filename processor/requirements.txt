@@ -1,0 +1,10 @@
+opencv-python
+asyncio-nats-client
+asgiref
+numpy
+webcolors==1.5
+scipy
+pytest
+mock
+responses
+parametrized
