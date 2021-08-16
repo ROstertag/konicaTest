@@ -2,7 +2,7 @@ import asyncio
 import json
 import numpy
 # import cv2
-from nats.aio.client import Client as NATS
+from nats.aio.client import Client
 from nats.aio.errors import ErrConnectionClosed, ErrTimeout, ErrNoServers
 from scipy.spatial import KDTree
 from webcolors import (
@@ -10,6 +10,7 @@ from webcolors import (
     hex_to_rgb,
 )
 
+NATS_ADDRESS = "nats-0.nats.default.svc:4222"
 
 def convert_rgb_to_names(rgb_tuple):
     # a dictionary of all the hex and their respective names in css3
@@ -27,10 +28,10 @@ def convert_rgb_to_names(rgb_tuple):
 
 
 async def run(loop):
-    nc = NATS()
+    nc = Client()
 
     try:
-        await nc.connect("nats-0.nats.default.svc:4222", loop=loop)
+        await nc.connect(NATS_ADDRESS, loop=loop)
 
     except ErrConnectionClosed as e:
         print("Connection closed prematurely. Error: %s ", e)
@@ -71,9 +72,7 @@ async def run(loop):
             await nc.publish("processed", json.dumps({"filename": result['filename'],
                                                       "img": result['img'],
                                                       "color": result_color_name,
-                                                      "average": (int(average[0]),
-                                                                  int(average[1]),
-                                                                  int(average[2]))}.encode()))
+                                                      "average": average_tuple}).encode())
 
     # Simple publisher and async subscriber via coroutine.
     sid = await nc.subscribe("pictures", cb=message_handler)

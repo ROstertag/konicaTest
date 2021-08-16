@@ -1,13 +1,14 @@
 import os
 import cv2
 import json
-import asyncio
 from flask import Flask, flash, request, redirect, render_template
 from werkzeug.utils import secure_filename
 from nats.aio.client import Client as NATS
 from nats.aio.errors import ErrConnectionClosed, ErrTimeout, ErrNoServers
 
-app=Flask(__name__)
+app = Flask(__name__)
+
+NATS_ADDRESS = "nats-0.nats.default.svc:4222"
 
 app.secret_key = "secret key"
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -47,11 +48,15 @@ async def upload_file():
         # get files list for upload
         files = request.files.getlist('files[]')
 
+        if len(files) > 20:
+            flash('Too many files for upload')
+            return redirect(request.url)
+
         nc = NATS()
 
         try:
             # open nats client connection
-            await nc.connect("nats-0.nats.default.svc:4222")
+            await nc.connect(NATS_ADDRESS)
         except ErrConnectionClosed as e:
             print("Connection closed prematurely. Error: %s ", e)
         except ErrTimeout as e:
@@ -84,15 +89,14 @@ async def upload_file():
                 except ErrTimeout as e:
                     flash("Timeout occured when publishing msg filename={}: {}".format(
                         filename, e))
-
+            else:
+                flash("Wrong type of file. Allowed only \'png\', \'jpg\', \'jpeg\', \'gif\'")
         # tu pride subscribe a flash routina na spracovane subory
-
 
         await nc.close()
 
-        flash('File(s) successfully uploaded')
         return redirect('/')
 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0',port=2222,debug=False,threaded=True)
+    app.run(host='127.0.0.1',port=2222,debug=False,threaded=True)

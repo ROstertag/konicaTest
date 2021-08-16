@@ -6,6 +6,7 @@ import cv2
 from nats.aio.client import Client as NATS
 from nats.aio.errors import ErrConnectionClosed, ErrTimeout, ErrNoServers
 
+NATS_ADDRESS = "nats-0.nats.default.svc:4222"
 
 async def run(loop):
     # Get current path
@@ -14,7 +15,7 @@ async def run(loop):
     nc = NATS()
 
     try:
-        await nc.connect("nats-0.nats.default.svc:4222", loop=loop)
+        await nc.connect(NATS_ADDRESS, loop=loop)
 
     except ErrConnectionClosed as e:
         print("Connection closed prematurely. Error: %s ", e)
@@ -44,8 +45,8 @@ async def run(loop):
             cv2.imwrite(str(result['filename']), numpy.array(result['img']))
 
             # we will send info about stored files into frontend
-            await nc.publish("stored", json.dumps({"filename": result['filename'],
-                                                   "color": result['color']}).encode())
+            # await nc.publish("stored", json.dumps({"filename": result['filename'],
+            #                                       "color": result['color']}).encode())
 
     # Simple publisher and async subscriber via coroutine.
     sid = await nc.subscribe("processed", cb=message_handler)
