@@ -28,8 +28,38 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
 
 
-def allowed_file(filename):
+def allowed_file(filename) -> str:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+async def process_files(files, nc) -> None:
+    for file in files:
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            try:
+                # save file locally
+                path_to_file = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(path_to_file)
+
+                # read file as img
+                img = cv2.imread(path_to_file, -1)
+
+                # publish image to nats with name and data
+                await nc.publish("pictures", json.dumps({"filename": filename, "img": img.tolist()}).encode())
+
+                # deletes local file
+                os.remove(path_to_file)
+
+                flash("File {} sent ".format(filename))
+
+            except ErrConnectionClosed as e:
+                flash("Connection closed prematurely.")
+                break
+            except ErrTimeout as e:
+                flash("Timeout occured when publishing msg filename={}: {}".format(
+                    filename, e))
+        else:
+            flash("Wrong type of file. Allowed only \'png\', \'jpg\', \'jpeg\', \'gif\'")
 
 
 @app.route('/')
@@ -58,40 +88,15 @@ async def upload_file():
             # open nats client connection
             await nc.connect(NATS_ADDRESS)
         except ErrConnectionClosed as e:
-            print("Connection closed prematurely. Error: %s ", e)
+            flash("Connection closed prematurely. Error: {} ".format(e))
         except ErrTimeout as e:
-            print("Connection Timeout occured. Error: %s ", e)
+            flash("Connection Timeout occured. Error: {} ".format(e))
         except ErrNoServers as e:
-            print("Problem with connection servers. Error: %s ", e)
+            flash("Problem with connection servers. Error: {} ".format(e))
 
-        for file in files:
-            if file and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                try:
-                    # save file locally
-                    path_to_file = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    file.save(path_to_file)
+        await process_files(files, nc)
 
-                    # read file as img
-                    img = cv2.imread(path_to_file, -1)
-
-                    # publish image to nats with name and data
-                    await nc.publish("pictures", json.dumps({"filename": filename, "img": img.tolist()}).encode())
-
-                    # deletes local file
-                    os.remove(path_to_file)
-
-                    flash("File {} sent ".format(filename))
-
-                except ErrConnectionClosed as e:
-                    flash("Connection closed prematurely.")
-                    break
-                except ErrTimeout as e:
-                    flash("Timeout occured when publishing msg filename={}: {}".format(
-                        filename, e))
-            else:
-                flash("Wrong type of file. Allowed only \'png\', \'jpg\', \'jpeg\', \'gif\'")
-        # tu pride subscribe a flash routina na spracovane subory
+        # Here can come routine for displaying saved files from writer
 
         await nc.close()
 

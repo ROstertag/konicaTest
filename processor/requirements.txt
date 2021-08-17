@@ -8,3 +8,4 @@ pytest
 mock
 responses
 parametrized
+pytest-asyncio

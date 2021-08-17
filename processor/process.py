@@ -1,47 +1,37 @@
 import asyncio
 import json
 import numpy
+import logging
+from common.runner import Runner
 # import cv2
-from nats.aio.client import Client
-from nats.aio.errors import ErrConnectionClosed, ErrTimeout, ErrNoServers
 from scipy.spatial import KDTree
 from webcolors import (
     css3_hex_to_names,
     hex_to_rgb,
 )
 
-NATS_ADDRESS = "nats-0.nats.default.svc:4222"
+log = logging.getLogger(__name__)
 
-def convert_rgb_to_names(rgb_tuple):
-    # a dictionary of all the hex and their respective names in css3
-    css3_db = css3_hex_to_names
+
+class Process(Runner):
     names = []
     rgb_values = []
-    for color_hex, color_name in css3_db.items():
-        names.append(color_name)
-        rgb_values.append(hex_to_rgb(color_hex))
 
-    # will count closest color
-    kdt_db = KDTree(rgb_values)
-    distance, index = kdt_db.query(rgb_tuple)
-    return f'{names[index]}'
+    def __init__(self):
+        # a dictionary of all the hex and their respective names in css3
+        css3_db = css3_hex_to_names
+        for color_hex, color_name in css3_db.items():
+            self.names.append(color_name)
+            self.rgb_values.append(hex_to_rgb(color_hex))
 
+    def convert_rgb_to_names(self, rgb_tuple) -> str:
+        # will count closest color to dictionary colors
+        kdt_db = KDTree(self.rgb_values)
+        distance, index = kdt_db.query(rgb_tuple)
+        return f'{self.names[index]}'
 
-async def run(loop):
-    nc = Client()
-
-    try:
-        await nc.connect(NATS_ADDRESS, loop=loop)
-
-    except ErrConnectionClosed as e:
-        print("Connection closed prematurely. Error: %s ", e)
-    except ErrTimeout as e:
-        print("Connection Timeout occured. Error: %s ", e)
-    except ErrNoServers as e:
-        print("Problem with connection servers. Error: %s ", e)
-
-    async def message_handler(msg):
-        print("Start handling message")
+    async def message_handler(self, msg) -> None:
+        log.debug("Start handling message")
         data = msg.data.decode()
         result = json.loads(data)
         # test for proper input
@@ -66,28 +56,17 @@ async def run(loop):
             '''
             average_tuple = (int(average[0]), int(average[1]), int(average[2]))
 
-            result_color_name = convert_rgb_to_names(average_tuple)
+            result_color_name = self.convert_rgb_to_names(average_tuple)
 
             # send processed file to (writer) third part of solution
-            await nc.publish("processed", json.dumps({"filename": result['filename'],
-                                                      "img": result['img'],
-                                                      "color": result_color_name,
-                                                      "average": average_tuple}).encode())
-
-    # Simple publisher and async subscriber via coroutine.
-    sid = await nc.subscribe("pictures", cb=message_handler)
-
-    while True:
-        await asyncio.sleep(1)
-
-    # Remove interest in subscription.
-    await nc.unsubscribe(sid)
-
-    # Terminate connection to NATS.
-    await nc.close()
+            await self.nc.publish("processed", json.dumps({"filename": result['filename'],
+                                                           "img": result['img'],
+                                                           "color": result_color_name,
+                                                           "average": average_tuple}).encode())
 
 
 if __name__ == '__main__':
+    processor = Process()
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(run(loop))
+    loop.run_until_complete(processor.run(loop, 'pictures'))
     loop.close()
