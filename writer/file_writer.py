@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 
 
 class Writer(Runner):
-    path = os.path.join(os.getcwd(), 'store')
+    path = os.getcwd()
 
     async def message_handler(self, msg) -> None:
         print("Start handling message")
