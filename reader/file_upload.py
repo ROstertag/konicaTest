@@ -59,7 +59,7 @@ async def process_files(files, nc) -> None:
                 flash("Timeout occured when publishing msg filename={}: {}".format(
                     filename, e))
         else:
-            flash("Wrong type of file. Allowed only \'png\', \'jpg\', \'jpeg\', \'gif\'")
+            flash("Wrong type of file {}. Allowed only \'png\', \'jpg\', \'jpeg\', \'gif\'".format(file.filename))
 
 
 @app.route('/')
